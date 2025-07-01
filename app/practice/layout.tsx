@@ -1,9 +1,11 @@
-import axios from 'axios';
 import { WordsProvider } from '@/providers/words-provider';
 import { ReactNode } from 'react';
+import easy from '@/data/easy_words.json';
+import medium from '@/data/medium_words.json';
+import hard from '@/data/hard_words.json';
 
 export const metadata = {
-  title: 'Practice Mode | TypeBlitz - Fast Typing Game',
+  title: 'Practice Mode',
   description:
     'Practice typing on TypeBlitz – a fast-paced typing challenge where you race against time in easy, medium, or hard mode. Improve your speed, accuracy, and reflexes.',
   keywords: [
@@ -46,18 +48,6 @@ export const metadata = {
 };
 
 export default async function Layout({ children }: { children: ReactNode }) {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-
-  const words = await Promise.all(
-    ['easy', 'medium', 'hard'].map((level) =>
-      axios
-        .get(`${baseUrl}/assets/data/${level}_words.json`)
-        .then((res) => res.data)
-    )
-  );
-
-  const [easy, medium, hard] = words;
-
   const wordList = {
     easy,
     medium,

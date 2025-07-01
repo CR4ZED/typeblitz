@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://typeblitz.com'),
   title: {
     default: 'TypeBlitz – Master Speed Typing Game Online',
-    template: '%s | TypeBlitz',
+    template: '%s | TypeBlitz - Fast Typing Game',
   },
   description:
     'Play TypeBlitz, the ultimate online typing game! Boost your typing speed, accuracy, and compete in real-time multiplayer typing races. Perfect for students, professionals, and anyone looking to improve keyboard skills. Free, fun, and challenging!',
@@ -63,7 +63,6 @@ export const metadata: Metadata = {
     canonical: 'https://typeblitz.com',
     languages: {
       'en-US': 'https://typeblitz.com',
-      // Add more languages as you localize
     },
   },
   openGraph: {
