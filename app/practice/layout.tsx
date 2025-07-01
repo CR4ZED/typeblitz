@@ -26,16 +26,7 @@ export const metadata = {
     title: 'Practice Mode | TypeBlitz - Fast Typing Game',
     description:
       'Choose from easy, medium, or hard and type the words before time runs out. Sharpen your reflexes with Practice Mode in the TypeBlitz universe.',
-    // url: "https://yourdomain.com/typerush",
     siteName: 'TypeBlitz',
-    // images: [
-    //   {
-    //     url: "https://yourdomain.com/og-image.png", // Replace with your OG image
-    //     width: 1200,
-    //     height: 630,
-    //     alt: "TypeBlitz - Fast Typing Game",
-    //   },
-    // ],
     type: 'website',
   },
   twitter: {
@@ -43,7 +34,6 @@ export const metadata = {
     title: 'Practice Mode | TypeBlitz - Fast Typing Game',
     description:
       'Challenge yourself with different difficulty levels and track your progress as you become a typing master.',
-    // images: ["https://yourdomain.com/og-image.png"], // Replace with your image
   },
 };
 
