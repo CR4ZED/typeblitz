@@ -1,4 +1,6 @@
-import PracticeMode from './page';
+import axios from 'axios';
+import { WordsProvider } from '@/providers/words-provider';
+import { ReactNode } from 'react';
 
 export const metadata = {
   title: 'Practice Mode | TypeBlitz - Fast Typing Game',
@@ -43,14 +45,14 @@ export const metadata = {
   },
 };
 
-export default async function Layout() {
+export default async function Layout({ children }: { children: ReactNode }) {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   const words = await Promise.all(
     ['easy', 'medium', 'hard'].map((level) =>
-      fetch(`${baseUrl}/assets/data/${level}_words.json`).then((res) =>
-        res.json()
-      )
+      axios
+        .get(`${baseUrl}/assets/data/${level}_words.json`)
+        .then((res) => res.data)
     )
   );
 
@@ -62,5 +64,5 @@ export default async function Layout() {
     hard,
   };
 
-  return <PracticeMode wordList={wordList} />;
+  return <WordsProvider wordList={wordList}>{children}</WordsProvider>;
 }

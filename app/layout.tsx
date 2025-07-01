@@ -14,6 +14,8 @@ const geistMono = Geist_Mono({
   display: 'swap',
 });
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://typeblitz.com'),
   title: {
@@ -89,7 +91,6 @@ export const metadata: Metadata = {
     // images: ['https://typeblitz.com/og-image.png'],
     creator: '@typeblitzgame',
   },
-  themeColor: '#ffffff',
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
