@@ -6,14 +6,6 @@ import { Progress } from "@/components/ui/progress";
 import { Trophy, Target, Zap, RotateCcw, Keyboard, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TIMER_DURATION = 30000;
-
-const DIFFICULTY_FILTERS = {
-  Easy: (word: string) => word.length >= 4 && word.length <= 5,
-  Medium: (word: string) => word.length >= 6 && word.length <= 8,
-  Hard: (word: string) => word.length > 8,
-};
-
 const DIFFICULTY_CONFIG = {
   Easy: {
     gradient: "from-emerald-400 via-teal-500 to-cyan-500",
@@ -24,6 +16,7 @@ const DIFFICULTY_CONFIG = {
     bgGradient: "from-emerald-500/20 to-teal-500/20",
     accentColor: "text-emerald-400",
     borderColor: "border-emerald-400/30",
+    duration: 10000, // time limit in ms
   },
   Medium: {
     gradient: "from-amber-400 via-orange-500 to-red-500",
@@ -34,6 +27,7 @@ const DIFFICULTY_CONFIG = {
     bgGradient: "from-amber-500/20 to-orange-500/20",
     accentColor: "text-amber-400",
     borderColor: "border-amber-400/30",
+    duration: 5000,
   },
   Hard: {
     gradient: "from-purple-400 via-pink-500 to-red-500",
@@ -44,44 +38,12 @@ const DIFFICULTY_CONFIG = {
     bgGradient: "from-purple-500/20 to-pink-500/20",
     accentColor: "text-purple-400",
     borderColor: "border-purple-400/30",
+    duration: 5000,
   },
 };
 
-// Sample words for demo (in a real app, this would come from an API)
-const SAMPLE_WORDS = {
-  Easy: [
-    "hello",
-    "world",
-    "type",
-    "fast",
-    "game",
-    "quick",
-    "light",
-    "space",
-    "music",
-    "heart",
-  ],
-  Medium: [
-    "typing",
-    "challenge",
-    "keyboard",
-    "letters",
-    "amazing",
-    "journey",
-    "digital",
-    "creative",
-  ],
-  Hard: [
-    "difficulty",
-    "incredible",
-    "championship",
-    "extraordinary",
-    "sophisticated",
-    "revolutionary",
-  ],
-};
-
 export default function Index() {
+  const [wordList, setWordList] = useState<Record<string, string[]>>({});
   const [words, setWords] = useState<string[]>([]);
   const [usedWords, setUsedWords] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState<string | null>(null);
@@ -103,6 +65,21 @@ export default function Index() {
   const correctAudio = useRef<HTMLAudioElement | null>(null);
   const failAudio = useRef<HTMLAudioElement | null>(null);
 
+  // Load words
+  useEffect(() => {
+    Promise.all(
+      ["easy", "medium", "hard"].map((level) =>
+        fetch(`/${level}_words.json`).then((res) => res.json())
+      )
+    ).then(([easyWords, mediumWords, hardWords]) => {
+      setWordList({
+        easy: easyWords,
+        medium: mediumWords,
+        hard: hardWords,
+      });
+    });
+  }, []);
+
   // Load sounds
   useEffect(() => {
     correctAudio.current = new Audio("/correct.mp3");
@@ -111,7 +88,7 @@ export default function Index() {
 
   // Load high score
   useEffect(() => {
-    const stored = localStorage.getItem("typeRushHighScore");
+    const stored = localStorage.getItem("typeBlitzHighScore");
     if (stored) setHighScore(Number.parseInt(stored));
   }, []);
 
@@ -133,8 +110,7 @@ export default function Index() {
   }, [difficulty]);
 
   const initGame = async () => {
-    // Using sample words for demo - in production, load from API
-    const wordsForDifficulty = SAMPLE_WORDS[difficulty!];
+    const wordsForDifficulty = wordList[difficulty!.toLocaleLowerCase()];
     setWords(wordsForDifficulty);
     const random = getRandomWord(wordsForDifficulty, []);
     setCurrentWord(random);
@@ -162,12 +138,13 @@ export default function Index() {
     return Math.round(wordsTyped / timeElapsed) || 0;
   }, [startTime, score]);
 
+
   const changeCurrentWord = useCallback(() => {
     const next = getRandomWord(words, usedWords);
     if (next) {
+      setInput("");
       setCurrentWord(next);
       setUsedWords((prev) => [...prev, next]);
-      setInput("");
       setProgress(100);
       setWpm(calculateWPM());
     } else {
@@ -209,7 +186,7 @@ export default function Index() {
           const newScore = s + 1;
           if (newScore > highScore) {
             setHighScore(newScore);
-            localStorage.setItem("typeRushHighScore", String(newScore));
+            localStorage.setItem("typeBlitzHighScore", String(newScore));
           }
           return newScore;
         });
@@ -265,9 +242,9 @@ export default function Index() {
   // Timer logic
   useEffect(() => {
     if (!currentWord || gameOver || countdown !== null) return;
-
+    const { duration } = DIFFICULTY_CONFIG[difficulty];
     const interval = 100;
-    const decrement = (100 * interval) / TIMER_DURATION;
+    const decrement = (100 * interval) / duration;
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -466,7 +443,7 @@ export default function Index() {
             {/* Success Animation */}
             {showSuccess && (
               <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-                <div className="text-6xl animate-bounce-subtle filter drop-shadow-lg">
+                <div className="text-6xl animate-fade-bounce filter drop-shadow-lg">
                   ✨
                 </div>
               </div>
@@ -619,7 +596,7 @@ export default function Index() {
                       <span className="sm:hidden">Time</span>
                     </span>
                     <span className="text-sm sm:text-lg font-mono bg-white/10 px-2 sm:px-3 py-1 rounded-lg">
-                      {Math.ceil((progress / 100) * (TIMER_DURATION / 1000))}s
+                      {Math.ceil((progress / 100) * (DIFFICULTY_CONFIG[difficulty].duration / 1000))}s
                     </span>
                   </div>
                   <div className="relative">
