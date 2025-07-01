@@ -397,7 +397,7 @@ export default function PracticeMode() {
           </div>
           <div className="flex items-center justify-center gap-2 text-white/50">
             <Image
-              src="/logo.svg"
+              src="/assets/icons/logo.svg"
               alt="Typeblitz logomark"
               width={80}
               height={80}
@@ -564,7 +564,7 @@ export default function PracticeMode() {
                   <div className="text-lg sm:text-xl lg:text-2xl text-white/50 font-mono bg-white/5 rounded-xl p-3 sm:p-4 max-w-xs sm:max-w-xl mx-auto border border-white/10 backdrop-blur-sm">
                     <div className="flex items-center justify-center gap-2">
                       <Image
-                        src="/logo.svg"
+                        src="/assets/icons/logo.svg"
                         alt="Typeblitz logomark"
                         width={80}
                         height={80}
