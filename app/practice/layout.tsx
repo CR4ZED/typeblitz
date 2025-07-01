@@ -37,7 +37,7 @@ export const metadata = {
   },
 };
 
-export default async function Layout({ children }: { children: ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }) {
   const wordList = {
     easy,
     medium,
