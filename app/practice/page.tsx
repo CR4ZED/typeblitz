@@ -48,8 +48,9 @@ const DIFFICULTY_CONFIG = {
   },
 };
 
+const WORD_LIST = { easy, medium, hard };
+
 export default function PracticeMode() {
-  const wordList = { easy, medium, hard };
   const [words, setWords] = useState<string[]>([]);
   const [usedWords, setUsedWords] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState<string | null>(null);
@@ -71,40 +72,9 @@ export default function PracticeMode() {
   const correctAudio = useRef<HTMLAudioElement | null>(null);
   const failAudio = useRef<HTMLAudioElement | null>(null);
 
-  // Load sounds
-  useEffect(() => {
-    correctAudio.current = new Audio('/assets/media/correct.mp3');
-    failAudio.current = new Audio('/assets/media/fail.mp3');
-  }, []);
-
-  // Load high score
-  useEffect(() => {
-    if (difficulty) {
-      const stored = localStorage.getItem(`typeBlitzHighScore_${difficulty}`);
-      if (stored) setHighScore(Number.parseInt(stored));
-    }
-  }, [difficulty]);
-
-  // Countdown before game
-  useEffect(() => {
-    if (difficulty) {
-      setCountdown(3);
-      const countdownInterval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev === 1) {
-            clearInterval(countdownInterval);
-            initGame();
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-  }, [difficulty]);
-
-  const initGame = async () => {
+  const initGame = useCallback(async () => {
     const wordsForDifficulty =
-      wordList[difficulty!.toLowerCase() as keyof typeof wordList];
+      WORD_LIST[difficulty!.toLowerCase() as keyof typeof WORD_LIST];
     setWords(wordsForDifficulty);
     const random = getRandomWord(wordsForDifficulty, []);
     setCurrentWord(random);
@@ -117,7 +87,7 @@ export default function PracticeMode() {
     setGameOver(false);
     setStartTime(Date.now());
     setWpm(0);
-  };
+  }, [difficulty]);
 
   const getRandomWord = (list: string[], exclude: string[]) => {
     const filtered = list.filter((w) => !exclude.includes(w));
@@ -233,6 +203,53 @@ export default function PracticeMode() {
     }
   };
 
+  const restartGame = () => {
+    setDifficulty(null);
+    setGameOver(false);
+    setUsedWords([]);
+    setScore(0);
+    setProgress(100);
+    setShowSuccess(false);
+    setStartTime(null);
+    setWpm(0);
+  };
+
+  const accuracy =
+    totalKeystrokes === 0
+      ? 100
+      : Math.round((correctKeystrokes / totalKeystrokes) * 100);
+
+  // Load sounds
+  useEffect(() => {
+    correctAudio.current = new Audio('/assets/media/correct.mp3');
+    failAudio.current = new Audio('/assets/media/fail.mp3');
+  }, []);
+
+  // Load high score
+  useEffect(() => {
+    if (difficulty) {
+      const stored = localStorage.getItem(`typeBlitzHighScore_${difficulty}`);
+      if (stored) setHighScore(Number.parseInt(stored));
+    }
+  }, [difficulty]);
+
+  // Countdown before game
+  useEffect(() => {
+    if (difficulty) {
+      setCountdown(3);
+      const countdownInterval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev === 1) {
+            clearInterval(countdownInterval);
+            initGame();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [difficulty, initGame]);
+
   useEffect(() => {
     window.addEventListener('keydown', onKeydown);
     return () => window.removeEventListener('keydown', onKeydown);
@@ -258,23 +275,7 @@ export default function PracticeMode() {
     }, interval);
 
     return () => clearInterval(timer);
-  }, [currentWord, gameOver, countdown, changeCurrentWord]);
-
-  const restartGame = () => {
-    setDifficulty(null);
-    setGameOver(false);
-    setUsedWords([]);
-    setScore(0);
-    setProgress(100);
-    setShowSuccess(false);
-    setStartTime(null);
-    setWpm(0);
-  };
-
-  const accuracy =
-    totalKeystrokes === 0
-      ? 100
-      : Math.round((correctKeystrokes / totalKeystrokes) * 100);
+  }, [currentWord, gameOver, countdown, changeCurrentWord, difficulty]);
 
   // Difficulty Selection Screen
   if (!difficulty) {
