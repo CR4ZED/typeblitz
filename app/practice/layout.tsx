@@ -1,8 +1,4 @@
-import { WordsProvider } from '@/providers/words-provider';
 import { ReactNode } from 'react';
-import easy from '@/data/easy_words.json';
-import medium from '@/data/medium_words.json';
-import hard from '@/data/hard_words.json';
 
 export const metadata = {
   title: 'Practice Mode',
@@ -38,11 +34,5 @@ export const metadata = {
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const wordList = {
-    easy,
-    medium,
-    hard,
-  };
-
-  return <WordsProvider wordList={wordList}>{children}</WordsProvider>;
+  return <>{children}</>;
 }

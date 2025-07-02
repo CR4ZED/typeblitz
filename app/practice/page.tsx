@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Trophy, Target, Zap, RotateCcw, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { WordsContext } from '@/providers/words-provider';
+import easy from '@/data/easy_words.json';
+import medium from '@/data/medium_words.json';
+import hard from '@/data/hard_words.json';
 
 const DIFFICULTY_CONFIG = {
   Easy: {
@@ -47,7 +49,7 @@ const DIFFICULTY_CONFIG = {
 };
 
 export default function PracticeMode() {
-  const wordList = useContext(WordsContext);
+  const wordList = { easy, medium, hard };
   const [words, setWords] = useState<string[]>([]);
   const [usedWords, setUsedWords] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState<string | null>(null);
