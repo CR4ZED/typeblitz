@@ -19,6 +19,8 @@ import {
   X,
   Timer,
   Settings,
+  Play,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import easy from '@/data/easy_words.json';
@@ -44,6 +46,7 @@ const DIFFICULTY_CONFIG = {
     accentColor: 'text-emerald-400',
     borderColor: 'border-emerald-400/30',
     duration: 10000, // time limit in ms per word
+    wordsToProgress: 10, // words needed to progress to next level
   },
   Medium: {
     gradient: 'from-amber-400 via-orange-500 to-red-500',
@@ -54,7 +57,8 @@ const DIFFICULTY_CONFIG = {
     bgGradient: 'from-amber-500/20 to-orange-500/20',
     accentColor: 'text-amber-400',
     borderColor: 'border-amber-400/30',
-    duration: 5000,
+    duration: 8000,
+    wordsToProgress: 15,
   },
   Hard: {
     gradient: 'from-purple-400 via-pink-500 to-red-500',
@@ -65,21 +69,24 @@ const DIFFICULTY_CONFIG = {
     bgGradient: 'from-purple-500/20 to-pink-500/20',
     accentColor: 'text-purple-400',
     borderColor: 'border-purple-400/30',
-    duration: 5000,
+    duration: 6000,
+    wordsToProgress: Number.POSITIVE_INFINITY, // Stay at hard level
   },
 };
 
 const WORD_LIST = { easy, medium, hard };
 
-export default function PracticeMode() {
+export default function TimelessMode() {
   const [words, setWords] = useState<string[]>([]);
   const [usedWords, setUsedWords] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [difficulty, setDifficulty] = useState<
-    'Easy' | 'Medium' | 'Hard' | null
-  >(null);
-  const [sessionTimeLimit, setSessionTimeLimit] = useState<number>(1); // in minutes
+  const [gameStarted, setGameStarted] = useState(false);
+  const [currentDifficulty, setCurrentDifficulty] = useState<
+    'Easy' | 'Medium' | 'Hard'
+  >('Easy');
+  const [wordsInCurrentDifficulty, setWordsInCurrentDifficulty] = useState(0);
+  const [sessionTimeLimit, setSessionTimeLimit] = useState<number>(0); // Default to no time limit for timeless mode
   const [progress, setProgress] = useState(100);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -89,6 +96,7 @@ export default function PracticeMode() {
   const [totalKeystrokes, setTotalKeystrokes] = useState(0);
   const [correctKeystrokes, setCorrectKeystrokes] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showLevelUp, setShowLevelUp] = useState(false);
   const [wpm, setWpm] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState<
@@ -99,6 +107,7 @@ export default function PracticeMode() {
 
   const correctAudio = useRef<HTMLAudioElement | null>(null);
   const failAudio = useRef<HTMLAudioElement | null>(null);
+  const levelUpAudio = useRef<HTMLAudioElement | null>(null);
   const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -124,8 +133,10 @@ export default function PracticeMode() {
   }, []);
 
   const initGame = useCallback(async () => {
-    const wordsForDifficulty =
-      WORD_LIST[difficulty!.toLowerCase() as keyof typeof WORD_LIST];
+    // Start with easy words
+    setCurrentDifficulty('Easy');
+    setWordsInCurrentDifficulty(0);
+    const wordsForDifficulty = WORD_LIST.easy;
     setWords(wordsForDifficulty);
     const random = getRandomWord(wordsForDifficulty, []);
     setCurrentWord(random);
@@ -144,7 +155,7 @@ export default function PracticeMode() {
     if (sessionTimeLimit > 0) {
       setSessionTimeRemaining(sessionTimeLimit * 60); // convert to seconds
     }
-  }, [difficulty, sessionTimeLimit]);
+  }, [sessionTimeLimit]);
 
   const getRandomWord = (list: string[], exclude: string[]) => {
     const filtered = list.filter((w) => !exclude.includes(w));
@@ -173,8 +184,47 @@ export default function PracticeMode() {
     endSession();
   };
 
+  const progressToNextDifficulty = useCallback(() => {
+    const nextDifficulty =
+      currentDifficulty === 'Easy'
+        ? 'Medium'
+        : currentDifficulty === 'Medium'
+          ? 'Hard'
+          : 'Hard';
+
+    if (nextDifficulty !== currentDifficulty) {
+      const newWordList =
+        WORD_LIST[nextDifficulty.toLowerCase() as 'easy' | 'medium' | 'hard'];
+      const nextWord = getRandomWord(newWordList, []);
+
+      // ⚡ Update everything instantly
+      setCurrentDifficulty(nextDifficulty);
+      setWordsInCurrentDifficulty(0);
+      setWords(newWordList);
+      setUsedWords([nextWord]);
+      setCurrentWord(nextWord);
+      setInput('');
+      //   mobileInputRef.current?.focus();
+
+      // ✨ Play level-up sound + quick badge animation
+      if (soundEnabled) levelUpAudio.current?.play();
+      setShowLevelUp(true);
+      setTimeout(() => setShowLevelUp(false), 800); // ⏱️ very short
+    }
+  }, [currentDifficulty, soundEnabled]);
+
   const changeCurrentWord = useCallback(() => {
     if (sessionEnded) return;
+
+    // Check if we need to progress to next difficulty
+    const config = DIFFICULTY_CONFIG[currentDifficulty];
+    if (
+      wordsInCurrentDifficulty >= config.wordsToProgress &&
+      currentDifficulty !== 'Hard'
+    ) {
+      progressToNextDifficulty();
+      return;
+    }
 
     const next = getRandomWord(words, usedWords);
     if (next) {
@@ -184,9 +234,23 @@ export default function PracticeMode() {
       setProgress(100);
       setWpm(calculateWPM());
     } else {
-      endSession();
+      // If no more words in current difficulty, progress to next
+      if (currentDifficulty !== 'Hard') {
+        progressToNextDifficulty();
+      } else {
+        endSession();
+      }
     }
-  }, [usedWords, words, calculateWPM, sessionEnded, endSession]);
+  }, [
+    usedWords,
+    words,
+    calculateWPM,
+    sessionEnded,
+    endSession,
+    currentDifficulty,
+    wordsInCurrentDifficulty,
+    progressToNextDifficulty,
+  ]);
 
   const onKeydown = (e: KeyboardEvent) => {
     if (gameOver || countdown !== null || !currentWord || sessionEnded) return;
@@ -223,14 +287,12 @@ export default function PracticeMode() {
           const newScore = s + 1;
           if (newScore > highScore) {
             setHighScore(newScore);
-            localStorage.setItem(
-              `typeBlitzHighScore_${difficulty}`,
-              String(newScore)
-            );
+            localStorage.setItem(`timelessModeHighScore`, String(newScore));
           }
           return newScore;
         });
 
+        setWordsInCurrentDifficulty((prev) => prev + 1);
         changeCurrentWord();
       }
 
@@ -262,14 +324,12 @@ export default function PracticeMode() {
         const newScore = s + 1;
         if (newScore > highScore) {
           setHighScore(newScore);
-          localStorage.setItem(
-            `practiceModeHighScore_${difficulty}`,
-            String(newScore)
-          );
+          localStorage.setItem(`timelessModeHighScore`, String(newScore));
         }
         return newScore;
       });
 
+      setWordsInCurrentDifficulty((prev) => prev + 1);
       changeCurrentWord();
     } else if (
       value.length > currentWord.length ||
@@ -281,19 +341,26 @@ export default function PracticeMode() {
   };
 
   const restartGame = () => {
-    setDifficulty(null);
+    setGameStarted(false);
     setGameOver(false);
     setSessionEnded(false);
     setUsedWords([]);
     setScore(0);
     setProgress(100);
     setShowSuccess(false);
+    setShowLevelUp(false);
     setStartTime(null);
     setWpm(0);
     setSessionTimeRemaining(null);
+    setCurrentDifficulty('Easy');
+    setWordsInCurrentDifficulty(0);
     if (sessionTimerRef.current) {
       clearInterval(sessionTimerRef.current);
     }
+  };
+
+  const startGame = () => {
+    setGameStarted(true);
   };
 
   const accuracy =
@@ -305,19 +372,18 @@ export default function PracticeMode() {
   useEffect(() => {
     correctAudio.current = new Audio('/assets/media/correct.mp3');
     failAudio.current = new Audio('/assets/media/fail.mp3');
+    levelUpAudio.current = new Audio('/assets/media/levelup.mp3');
   }, []);
 
   // Load high score
   useEffect(() => {
-    if (difficulty) {
-      const stored = localStorage.getItem(`typeBlitzHighScore_${difficulty}`);
-      if (stored) setHighScore(Number.parseInt(stored));
-    }
-  }, [difficulty]);
+    const stored = localStorage.getItem(`timelessModeHighScore`);
+    if (stored) setHighScore(Number.parseInt(stored));
+  }, []);
 
   // Countdown before game
   useEffect(() => {
-    if (difficulty) {
+    if (gameStarted) {
       setCountdown(3);
       const countdownInterval = setInterval(() => {
         setCountdown((prev) => {
@@ -330,7 +396,7 @@ export default function PracticeMode() {
         });
       }, 1000);
     }
-  }, [difficulty, initGame]);
+  }, [gameStarted, initGame]);
 
   useEffect(() => {
     window.addEventListener('keydown', onKeydown);
@@ -375,9 +441,8 @@ export default function PracticeMode() {
   // Per-word timer logic
   useEffect(() => {
     if (!currentWord || gameOver || countdown !== null || sessionEnded) return;
-    if (difficulty === null) return;
 
-    const { duration } = DIFFICULTY_CONFIG[difficulty];
+    const { duration } = DIFFICULTY_CONFIG[currentDifficulty];
     const interval = 100;
     const decrement = (100 * interval) / duration;
 
@@ -398,7 +463,7 @@ export default function PracticeMode() {
     gameOver,
     countdown,
     changeCurrentWord,
-    difficulty,
+    currentDifficulty,
     sessionEnded,
   ]);
 
@@ -409,8 +474,8 @@ export default function PracticeMode() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Difficulty Selection Screen
-  if (!difficulty) {
+  // Start Screen
+  if (!gameStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
         {/* Enhanced animated background elements */}
@@ -442,7 +507,7 @@ export default function PracticeMode() {
                 </div>
               </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 gradient-text-rainbow tracking-tight">
-                Practice Mode
+                Timeless Mode
               </h1>
               {/* Settings Button */}
               <div className="flex justify-center mb-6">
@@ -486,7 +551,7 @@ export default function PracticeMode() {
                             setSessionTimeLimit(Number(e.target.value) || 0)
                           }
                           className="text-center text-lg font-mono bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-blue-400/50 focus:ring-blue-400/25"
-                          placeholder="1"
+                          placeholder="0"
                         />
                         <p className="text-xs text-white/60 text-center">
                           Minutes (0 = No Time Limit)
@@ -535,51 +600,51 @@ export default function PracticeMode() {
                 </Dialog>
               </div>
               <p className="text-lg sm:text-xl text-white/70 font-light mb-2">
-                Master the art of speed typing
+                Progressive difficulty typing challenge
               </p>
-              <p className="text-xs sm:text-sm text-white/50 max-w-2xl mx-auto">
-                Challenge yourself with different difficulty levels and track
-                your progress as you become a typing master.
+              <p className="text-xs sm:text-sm text-white/50 max-w-2xl mx-auto mb-6">
+                Start with easy words and progress through medium to hard as you
+                improve. No time pressure, just pure skill development.
               </p>
+
+              {/* Difficulty Progression Info */}
+              <div className="grid gap-2 sm:gap-3 grid-cols-3 max-w-lg mx-auto mb-8">
+                {(
+                  Object.keys(DIFFICULTY_CONFIG) as Array<
+                    keyof typeof DIFFICULTY_CONFIG
+                  >
+                ).map((level, index) => {
+                  const config = DIFFICULTY_CONFIG[level];
+                  return (
+                    <div
+                      key={level}
+                      className="flex items-center gap-2 text-white/60"
+                    >
+                      <div className="text-2xl">{config.icon}</div>
+                      <div className="text-left">
+                        <div className="text-sm font-medium">{level}</div>
+                        <div className="text-xs opacity-70">
+                          {config.description}
+                        </div>
+                      </div>
+                      {index < 2 && (
+                        <TrendingUp className="w-4 h-4 text-white/40" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3 mb-6 sm:mb-8">
-              {(
-                Object.keys(DIFFICULTY_CONFIG) as Array<
-                  keyof typeof DIFFICULTY_CONFIG
-                >
-              ).map((level) => {
-                const config = DIFFICULTY_CONFIG[level];
-                return (
-                  <Button
-                    key={level}
-                    onClick={() => setDifficulty(level)}
-                    className={cn(
-                      'h-40 sm:h-48 flex flex-col items-center justify-center gap-4 sm:gap-6 text-white border-2 border-white/10 hover:border-white/30 transition-all duration-500 hover:scale-105 active:scale-95 group relative overflow-hidden touch-manipulation',
-                      `bg-gradient-to-br ${config.gradient}`,
-                      config.shadowColor,
-                      'hover:shadow-2xl'
-                    )}
-                    size="lg"
-                  >
-                    <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                    <div className="text-5xl mb-3 group-hover:animate-bounce-subtle group-hover:scale-110 transition-transform duration-300">
-                      {config.icon}
-                    </div>
-                    <div className="text-center relative z-10">
-                      <div className="font-bold text-2xl mb-2">{level}</div>
-                      <div className="text-base opacity-90 mb-3">
-                        {config.description}
-                      </div>
-                      <div className="text-sm opacity-70">
-                        Perfect for {level.toLowerCase()} typists
-                      </div>
-                    </div>
-                    <div className="absolute inset-0 animate-shimmer opacity-0 group-hover:opacity-20 transition-opacity duration-700"></div>
-                  </Button>
-                );
-              })}
-            </div>
+            {/* Start Button */}
+            <Button
+              onClick={startGame}
+              size="lg"
+              className="bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500 hover:from-emerald-600 hover:via-blue-600 hover:to-purple-600 text-white border-0 px-12 py-4 text-xl font-bold transition-all duration-300 hover:scale-110 shadow-2xl hover:shadow-blue-500/25 group touch-manipulation"
+            >
+              <Play className="w-6 h-6 mr-3 group-hover:scale-110 transition-transform duration-300" />
+              Start Timeless Journey
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -603,19 +668,12 @@ export default function PracticeMode() {
             {countdown}
           </div>
           <div className="text-lg sm:text-xl lg:text-2xl text-white/70 font-light animate-pulse-soft mb-3 sm:mb-4">
-            Get ready to type...
+            Get ready for your timeless journey...
           </div>
           <div className="mb-4">
-            <Badge
-              className={cn(
-                'text-lg px-6 py-2 font-semibold',
-                `bg-gradient-to-r ${DIFFICULTY_CONFIG[difficulty!].gradient} border-0 shadow-lg`
-              )}
-            >
-              <span className="mr-2">
-                {DIFFICULTY_CONFIG[difficulty!].icon}
-              </span>
-              {difficulty} Mode Selected
+            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 px-6 py-2 text-lg font-semibold">
+              <span className="mr-2">🌱</span>
+              Starting with Easy Mode
             </Badge>
           </div>
           {sessionTimeLimit > 0 && (
@@ -663,6 +721,21 @@ export default function PracticeMode() {
               <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
                 <div className="text-6xl animate-fade-bounce filter drop-shadow-lg">
                   ✨
+                </div>
+              </div>
+            )}
+
+            {/* Level Up Animation */}
+            {showLevelUp && (
+              <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+                <div className="text-center animate-fade-bounce">
+                  <div className="text-6xl mb-4 filter drop-shadow-lg">🎉</div>
+                  <div className="text-3xl font-black text-white gradient-text drop-shadow-lg">
+                    Level Up!
+                  </div>
+                  <div className="text-xl text-white/80 mt-2">
+                    Now playing {currentDifficulty} mode
+                  </div>
                 </div>
               </div>
             )}
@@ -769,14 +842,23 @@ export default function PracticeMode() {
                   <Badge
                     className={cn(
                       'mb-4 sm:mb-6 text-sm sm:text-lg px-4 sm:px-6 py-1.5 sm:py-2 font-semibold border-0 shadow-lg hover:scale-105 transition-transform duration-300',
-                      `bg-gradient-to-r ${DIFFICULTY_CONFIG[difficulty!].gradient}`
+                      `bg-gradient-to-r ${DIFFICULTY_CONFIG[currentDifficulty].gradient}`
                     )}
                   >
                     <span className="mr-2">
-                      {DIFFICULTY_CONFIG[difficulty!].icon}
+                      {DIFFICULTY_CONFIG[currentDifficulty].icon}
                     </span>
-                    {difficulty} Mode
+                    {currentDifficulty} Mode
                   </Badge>
+                  <div className="text-sm text-white/60 mt-2">
+                    Progress: {wordsInCurrentDifficulty}/
+                    {DIFFICULTY_CONFIG[currentDifficulty].wordsToProgress ===
+                    Number.POSITIVE_INFINITY
+                      ? '∞'
+                      : DIFFICULTY_CONFIG[currentDifficulty]
+                          .wordsToProgress}{' '}
+                    words
+                  </div>
                 </div>
 
                 {/* Enhanced Word Display */}
@@ -854,7 +936,7 @@ export default function PracticeMode() {
                     <span className="text-sm sm:text-lg font-mono bg-white/10 px-2 sm:px-3 py-1 rounded-lg">
                       {Math.ceil(
                         (progress / 100) *
-                          (DIFFICULTY_CONFIG[difficulty].duration / 1000)
+                          (DIFFICULTY_CONFIG[currentDifficulty].duration / 1000)
                       )}
                       s
                     </span>
@@ -881,15 +963,17 @@ export default function PracticeMode() {
                   {sessionEnded ? '⏰' : '🎉'}
                 </div>
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-3 sm:mb-4 gradient-text drop-shadow-2xl">
-                  {sessionEnded ? 'Session Complete!' : 'Amazing Work!'}
+                  {sessionEnded
+                    ? 'Session Complete!'
+                    : 'Timeless Journey Complete!'}
                 </h2>
                 <p className="text-lg sm:text-xl text-white/70 font-light mb-2">
                   {sessionEnded
                     ? "Time's up! Here are your results"
-                    : "You've completed the typing challenge"}
+                    : "You've mastered the timeless challenge"}
                 </p>
                 <p className="text-sm text-white/50">
-                  Your fingers are getting faster every day!
+                  You reached {currentDifficulty} difficulty level!
                 </p>
               </div>
 
@@ -943,7 +1027,7 @@ export default function PracticeMode() {
                 className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 hover:from-purple-600 hover:via-pink-600 hover:to-red-600 text-white border-0 px-8 sm:px-12 py-3 sm:py-4 text-lg sm:text-xl font-bold transition-all duration-300 hover:scale-110 shadow-2xl hover:shadow-purple-500/25 group"
               >
                 <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 group-hover:rotate-180 transition-transform duration-500" />
-                Play Again
+                Start New Journey
               </Button>
             </CardContent>
           </Card>
